@@ -25,6 +25,36 @@ void add_history(char* unused){}
 #include <editline/history.h>
 #endif
 
+long eval_op(long x, char* op, long y) {
+	if (strcmp(op, "+") == 0) { return x + y; }
+	if (strcmp(op, "-") == 0) { return x - y; }
+	if (strcmp(op, "*") == 0) { return x * y; }
+	if (strcmp(op, "/") == 0) { return x / y; }
+	return 0;
+}
+
+double eval(mpc_ast_t* t)
+{
+	if(strstr(t->tag, "number"))
+	{
+		return atof(t->contents);
+	}
+	
+	char* op = t->children[1]->contents;
+	
+	double x = eval(t->children[2]);
+	
+	int i = 3;
+	while (strstr(t->children[i]->tag, "expr"))
+	{
+		x = eval_op(x, op, eval(t->children[i]));
+		i++;
+	}
+	
+	return x;
+	
+}
+
 int main (int argc, char** argv)
 {
 	mpc_parser_t* Number   = mpc_new("number");
@@ -43,7 +73,7 @@ int main (int argc, char** argv)
 		Number, Operator, Expr, Lispy
 	);
 	
-	puts("Lispy Version 0.0.0.0.2");
+	puts("Lispy Version 0.0.0.0.3");
 	puts("Press Ctrl + c to Exit\n");
 	
 	
@@ -56,8 +86,12 @@ int main (int argc, char** argv)
 		
 		if(mpc_parse("<stdin>", input, Lispy, &r))
 		{
-			mpc_ast_print(r.output);
-			mpc_ast_delete(r.output);
+			/*mpc_ast_print(r.output);
+			mpc_ast_delete(r.output);*/
+			
+			double result = eval(r.output);
+			printf("%f\n", result);
+			
 		}
 		else
 		{
