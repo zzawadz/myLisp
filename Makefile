@@ -10,5 +10,5 @@ endif
 all: myLisp
 
 myLisp: main.c
-	$(CC) $(READLINE) -std=c99 -Wall main.c -o myLisp
+	$(CC) $(READLINE) -std=c99 -Wall main.c mpc.c -o myLisp
 
