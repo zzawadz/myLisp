@@ -173,43 +173,133 @@ void lval_println(lval* v)
 	putchar('\n');
 }
 
-/*lval eval_op(lval x, char* op, lval y) {
-	
-	if(x.type == LVAL_ERR) { return x; }
-	if(y.type == LVAL_ERR) { return y; }
-	
-	if (strcmp(op, "+") == 0) { return lval_num(x.num + y.num); }
-	if (strcmp(op, "-") == 0) { return lval_num(x.num - y.num); }
-	if (strcmp(op, "*") == 0) { return lval_num(x.num * y.num); }
-	if (strcmp(op, "/") == 0) 
-	{	
-		 
-		return y.num == 0.0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num); 
-	}
-	
-	return lval_err(LERR_BAD_OP);
-}
 
-lval eval(mpc_ast_t* t)
+
+lval* lval_pop(lval* v, int i)
 {
-	if(strstr(t->tag, "number"))
-	{
-		
-	}
+	lval* x  = v->cell[i];
 	
-	char* op = t->children[1]->contents;
-	lval x = eval(t->children[2]);
+	memmove(&v->cell[i], &v->cell[i+1], sizeof(lval*) * (v->count - i - 1));
 	
-	int i = 3;
-	while (strstr(t->children[i]->tag, "expr"))
-	{
-		x = eval_op(x, op, eval(t->children[i]));
-		i++;
-	}
+	v->count--;
+	
+	v->cell = realloc(v->cell, sizeof(lval*) * v->count);
 	
 	return x;
 	
-}*/
+}
+
+lval* lval_take(lval* v, int i)
+{
+	lval* x = lval_pop(v, i);
+	lval_del(v);
+	
+	return x;
+	
+}
+
+lval * bulitin_op(lval* a, char* op)
+{
+	for(int i = 0; i < a->count; i++)
+	{
+		lval* tmp = a->cell[i];
+		if(tmp->type != LVAL_NUM)
+		{
+			lval_del(a);
+			return lval_err("Cannot operate on non-number");
+		}
+	}
+	
+	lval* x = lval_pop(a, 0);
+	
+	if((strcmp(op, "-") == 0) && a->count == 0)
+	{
+		x->num = - x->num;
+	}
+	
+	while(a->count > 0)
+	{
+		lval* y = lval_pop(a, 0);
+		
+		if(strcmp(op, "+") == 0) { x->num += y->num; }
+		if (strcmp(op, "-") == 0) { x->num -= y->num; }
+		if (strcmp(op, "*") == 0) { x->num *= y->num; }
+		if (strcmp(op, "/") == 0) 
+		{
+			if (y->num == 0) 
+			{
+				lval_del(x); lval_del(y);
+				x = lval_err("Division By Zero!"); break;
+			}
+				x->num /= y->num;
+		}
+		
+		lval_del(y);
+		
+	}
+	
+	lval_del(a);
+	
+	return x;
+}
+
+lval* lval_eval_sexpr(lval* v);
+
+lval* lval_eval(lval* v)
+{
+	if(v->type == LVAL_SEXPR) 
+	{
+		return lval_eval_sexpr(v);
+	}
+	
+	return v;
+}
+
+lval* lval_eval_sexpr(lval* v)
+{
+	for(int i = 0; i < v->count; i++)
+	{
+		v->cell[i] = lval_eval(v->cell[i]);
+	}
+	
+	/* Error checking */
+	for(int i = 0; i < v->count; i++)
+	{
+		lval* tmp = v->cell[i]; /* work around for 'error: dereferencing pointer to incomplete type' */ 
+		if(tmp->type == LVAL_ERR) 
+		{
+			return lval_take(v, i);
+		}
+	}
+	
+	/* Empty expr */
+	if(v->count == 0)
+	{
+		return v;
+	}
+	
+	/* Single expr */
+	if(v->count == 1) 
+	{
+		return lval_take(v, 0);
+	}
+	
+	/* Ensure first element is a symbol */
+	lval* f = lval_pop(v, 0);
+	if(f->type != LVAL_SYM)
+	{
+		lval_del(f);
+		lval_del(v);
+		return lval_err("S-expr does not start with symbol");
+	} 
+	
+	lval* result = bulitin_op(v, f->sym);
+	lval_del(f);
+	return result;
+	
+}
+
+
 
 int main (int argc, char** argv)
 {
@@ -231,7 +321,7 @@ int main (int argc, char** argv)
 		Number, Symbol, Sexpr, Expr, Lispy
 	);
 	
-	puts("Lispy Version 0.0.0.0.4");
+	puts("Lispy Version 0.0.0.0.5");
 	puts("Press Ctrl + c to Exit\n");
 	
 	
@@ -248,6 +338,8 @@ int main (int argc, char** argv)
 			mpc_ast_delete(r.output);*/
 			
 			lval* x = lval_read(r.output);
+			x = lval_eval(x);
+			
 			lval_println(x);
 			lval_del(x);
 			
